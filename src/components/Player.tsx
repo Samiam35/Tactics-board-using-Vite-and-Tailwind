@@ -144,6 +144,20 @@ export const Player = React.memo(({ player }: PlayerProps) => {
                 align="center"
                 offsetX={player.name.length * 3.2}
             />
+
+            {/* Stamina percentage text (right of icon) */}
+            <Text
+                text={String(player.stamina)}
+                x={ringRadius + 8}
+                y={-6}
+                fontSize={11}
+                fontFamily="Arial"
+                fontStyle="bold"
+                fill={staminaColor}
+                shadowColor="#000000"
+                shadowBlur={3}
+                shadowOpacity={0.8}
+            />
         </Group>
     );
 }, (prevProps, nextProps) => {
