@@ -78,6 +78,8 @@ export const InspectorPanel = () => {
                                     value={selectedPlayer.name}
                                     onChange={(e) => updatePlayerDetails(selectedPlayer.id, { name: e.target.value })}
                                     className="w-full bg-slate-800/50 border border-white/10 rounded px-2 py-1 text-white text-sm mb-2 focus:outline-none focus:border-white/30"
+                                    title="Player name"
+                                    placeholder="Enter player name"
                                 />
 
                                 {/* Number Input */}
@@ -90,6 +92,8 @@ export const InspectorPanel = () => {
                                         value={selectedPlayer.number}
                                         onChange={(e) => updatePlayerDetails(selectedPlayer.id, { number: parseInt(e.target.value) || 1 })}
                                         className="w-16 bg-slate-800/50 border border-white/10 rounded px-2 py-1 text-white text-sm focus:outline-none focus:border-white/30"
+                                        title="Jersey number"
+                                        placeholder="#"
                                     />
                                 </div>
 
@@ -113,6 +117,7 @@ export const InspectorPanel = () => {
                                         value={selectedPlayer.stamina}
                                         onChange={(e) => updatePlayerStamina(selectedPlayer.id, parseInt(e.target.value))}
                                         className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                                        title={`Stamina: ${selectedPlayer.stamina}%`}
                                         style={{
                                             accentColor: getStaminaColor(selectedPlayer.stamina),
                                         }}
@@ -201,6 +206,8 @@ export const InspectorPanel = () => {
                                                 deletePlayer(player.id);
                                             }}
                                             className="text-red-400/60 hover:text-red-400 transition-colors"
+                                            title="Remove player"
+                                            aria-label="Remove player from squad"
                                         >
                                             <Trash2 size={14} />
                                         </button>

@@ -6,6 +6,7 @@ import { smoothLine } from '../utils/lineSmoothing';
 import { Pitch } from './Pitch';
 import { Player } from './Player';
 import { Ball } from './Ball';
+import { KickUpsAnimation } from './KickUpsAnimation';
 import type Konva from 'konva';
 
 const PITCH_ASPECT_RATIO = 1.5;
@@ -253,6 +254,9 @@ export const TacticalBoard = () => {
 
                 {/* Ball - on top of players */}
                 <Ball />
+
+                {/* Kick-ups animation in bottom left */}
+                <KickUpsAnimation x={50} y={windowHeight - 50} />
             </Layer>
         </Stage>
     );
