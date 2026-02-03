@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { ApiPlayer } from '../services/teamApi';
 
 export type Tool = 'select' | 'pen' | 'eraser';
 
@@ -70,6 +71,9 @@ interface TacticalState {
 
     // Initialization
     initializePlayers: (pitchWidth: number, pitchHeight: number, offsetX: number, offsetY: number) => void;
+
+    // Team loading from API
+    loadTeamFromApi: (team: 'home' | 'away', apiPlayers: ApiPlayer[], pitchWidth: number, pitchHeight: number, offsetX: number, offsetY: number) => void;
 }
 
 // Default player names - Chelsea vs Arsenal
@@ -253,4 +257,73 @@ export const useTacticalStore = create<TacticalState>((set, get) => ({
                 y: offsetY + pitchHeight / 2,
             },
         }),
+
+    loadTeamFromApi: (team, apiPlayers, pitchWidth, pitchHeight, offsetX, offsetY) => {
+        const isHome = team === 'home';
+
+        // 4-4-2 formation positions (relative to pitch)
+        const formationPositions = isHome
+            ? [
+                { x: 0.05, y: 0.5 },   // GK
+                { x: 0.22, y: 0.15 },  // RB
+                { x: 0.22, y: 0.38 },  // CB
+                { x: 0.22, y: 0.62 },  // CB
+                { x: 0.22, y: 0.85 },  // LB
+                { x: 0.38, y: 0.15 },  // RM
+                { x: 0.38, y: 0.38 },  // CM
+                { x: 0.38, y: 0.62 },  // CM
+                { x: 0.38, y: 0.85 },  // LM
+                { x: 0.48, y: 0.35 },  // ST
+                { x: 0.48, y: 0.65 },  // ST
+            ]
+            : [
+                { x: 0.95, y: 0.5 },   // GK
+                { x: 0.78, y: 0.15 },  // RB
+                { x: 0.78, y: 0.38 },  // CB
+                { x: 0.78, y: 0.62 },  // CB
+                { x: 0.78, y: 0.85 },  // LB
+                { x: 0.62, y: 0.15 },  // RM
+                { x: 0.62, y: 0.38 },  // CM
+                { x: 0.62, y: 0.62 },  // CM
+                { x: 0.62, y: 0.85 },  // LM
+                { x: 0.52, y: 0.35 },  // ST
+                { x: 0.52, y: 0.65 },  // ST
+            ];
+
+        // Take top 11 players (sorted by overall rating from API)
+        const startingXI = apiPlayers.slice(0, 11);
+        const substitutes = apiPlayers.slice(11);
+
+        const newPlayers: Player[] = startingXI.map((apiPlayer, index) => ({
+            id: `${team}-${apiPlayer.id}`,
+            team,
+            number: index + 1,
+            name: apiPlayer.name,
+            x: offsetX + formationPositions[index].x * pitchWidth,
+            y: offsetY + formationPositions[index].y * pitchHeight,
+            isOnBench: false,
+            stamina: 100,
+        }));
+
+        // Add substitutes to bench
+        substitutes.forEach((apiPlayer, index) => {
+            newPlayers.push({
+                id: `${team}-${apiPlayer.id}`,
+                team,
+                number: 12 + index,
+                name: apiPlayer.name,
+                x: 50,
+                y: 50,
+                isOnBench: true,
+                stamina: 100,
+            });
+        });
+
+        set((state) => ({
+            players: [
+                ...state.players.filter((p) => p.team !== team), // Keep other team
+                ...newPlayers,
+            ],
+        }));
+    },
 }));

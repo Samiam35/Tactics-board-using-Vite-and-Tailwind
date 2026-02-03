@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Users, Trash2, ToggleLeft, ToggleRight, Zap } from 'lucide-react';
+import { ChevronDown, ChevronUp, Users, Trash2, ToggleLeft, ToggleRight, Zap, Search, Loader2 } from 'lucide-react';
 import { useTacticalStore } from '../store/useTacticalStore';
+import { fetchTeamSquad } from '../services/teamApi';
 
 // Get stamina bar color based on value (25% each: light green > orange > yellow > red)
 const getStaminaColor = (stamina: number): string => {
@@ -13,6 +14,9 @@ const getStaminaColor = (stamina: number): string => {
 export const InspectorPanel = () => {
     const [isMinimized, setIsMinimized] = useState(false);
     const [activeTeam, setActiveTeam] = useState<'home' | 'away'>('home');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const players = useTacticalStore((state) => state.players);
     const selectedPlayerId = useTacticalStore((state) => state.selectedPlayerId);
@@ -22,11 +26,35 @@ export const InspectorPanel = () => {
     const toggleBench = useTacticalStore((state) => state.toggleBench);
     const deletePlayer = useTacticalStore((state) => state.deletePlayer);
     const addPlayer = useTacticalStore((state) => state.addPlayer);
+    const loadTeamFromApi = useTacticalStore((state) => state.loadTeamFromApi);
 
     const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
     const teamPlayers = players.filter((p) => p.team === activeTeam);
     const activePlayers = teamPlayers.filter((p) => !p.isOnBench);
     const benchPlayers = teamPlayers.filter((p) => p.isOnBench);
+
+    // Pitch dimensions (must match TacticalBoard)
+    const pitchWidth = 800;
+    const pitchHeight = 500;
+    const offsetX = 100;
+    const offsetY = 100;
+
+    const handleLoadTeam = async () => {
+        if (!searchQuery.trim()) return;
+
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            const response = await fetchTeamSquad(searchQuery.trim());
+            loadTeamFromApi(activeTeam, response.players, pitchWidth, pitchHeight, offsetX, offsetY);
+            setSearchQuery('');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to load team');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return (
         <div className="fixed right-4 top-4 z-50 w-72">
@@ -65,6 +93,35 @@ export const InspectorPanel = () => {
                             >
                                 Arsenal ({players.filter(p => p.team === 'away' && !p.isOnBench).length}/11)
                             </button>
+                        </div>
+
+                        {/* Team Search */}
+                        <div className="p-3 border-b border-white/10">
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search team..."
+                                    className="flex-1 bg-slate-800/50 border border-white/10 rounded px-2 py-1.5 text-white text-sm focus:outline-none focus:border-white/30"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && searchQuery.trim()) {
+                                            handleLoadTeam();
+                                        }
+                                    }}
+                                />
+                                <button
+                                    onClick={handleLoadTeam}
+                                    disabled={isLoading || !searchQuery.trim()}
+                                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:text-white/40 text-white text-sm rounded flex items-center gap-1 transition-colors"
+                                >
+                                    {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                                    Load
+                                </button>
+                            </div>
+                            {error && (
+                                <div className="mt-2 text-xs text-red-400">{error}</div>
+                            )}
                         </div>
 
                         {/* Selected Player Editor */}
