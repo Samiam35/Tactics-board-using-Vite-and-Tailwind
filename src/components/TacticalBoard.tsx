@@ -80,6 +80,15 @@ export const TacticalBoard = () => {
         return { pitchWidth, pitchHeight, offsetX, offsetY };
     }, [windowWidth, windowHeight]);
 
+    // Sync pitch dimensions to store
+    const setPitchDimensions = useTacticalStore((state) => state.setPitchDimensions);
+
+    useEffect(() => {
+        if (pitchDimensions.pitchWidth > 0) {
+            setPitchDimensions(pitchDimensions);
+        }
+    }, [pitchDimensions, setPitchDimensions]);
+
     // Initialize players
     useEffect(() => {
         if (!isInitialized.current && pitchDimensions.pitchWidth > 0) {

@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import type { ApiPlayer } from '../services/teamApi';
+import { buildLineup, FORMATION_442_HOME, FORMATION_442_AWAY } from '../utils/positionMapping';
 
 export type Tool = 'select' | 'pen' | 'eraser';
 
@@ -34,6 +36,13 @@ export interface Ball {
     y: number;
 }
 
+export interface PitchDimensions {
+    pitchWidth: number;
+    pitchHeight: number;
+    offsetX: number;
+    offsetY: number;
+}
+
 interface TacticalState {
     activeTool: Tool;
     penColor: PenColor;
@@ -43,6 +52,8 @@ interface TacticalState {
     lineHistory: Line[][];
     selectedPlayerId: string | null;
     ball: Ball;
+    pitchDimensions: PitchDimensions;
+    teamNames: { home: string; away: string };
 
     // Tool actions
     setActiveTool: (tool: Tool) => void;
@@ -70,6 +81,12 @@ interface TacticalState {
 
     // Initialization
     initializePlayers: (pitchWidth: number, pitchHeight: number, offsetX: number, offsetY: number) => void;
+
+    // Team loading from API
+    loadTeamFromApi: (team: 'home' | 'away', apiPlayers: ApiPlayer[], teamName: string) => void;
+
+    // Pitch dimensions
+    setPitchDimensions: (dimensions: PitchDimensions) => void;
 }
 
 // Default player names - Chelsea vs Arsenal
@@ -133,6 +150,8 @@ export const useTacticalStore = create<TacticalState>((set, get) => ({
     lineHistory: [],
     selectedPlayerId: null,
     ball: { x: 0, y: 0 }, // Will be set to center on init
+    pitchDimensions: { pitchWidth: 0, pitchHeight: 0, offsetX: 0, offsetY: 0 },
+    teamNames: { home: 'Chelsea', away: 'Arsenal' },
 
     setActiveTool: (tool) => set({ activeTool: tool }),
 
@@ -253,4 +272,52 @@ export const useTacticalStore = create<TacticalState>((set, get) => ({
                 y: offsetY + pitchHeight / 2,
             },
         }),
+
+    loadTeamFromApi: (team, apiPlayers, teamName) => {
+        const { pitchDimensions } = get();
+        const { pitchWidth, pitchHeight, offsetX, offsetY } = pitchDimensions;
+        const isHome = team === 'home';
+
+        // Use position-based lineup building
+        const { startingXI, substitutes } = buildLineup(apiPlayers, isHome);
+        const formation = isHome ? FORMATION_442_HOME : FORMATION_442_AWAY;
+
+        const newPlayers: Player[] = startingXI.map((apiPlayer, index) => ({
+            id: `${team}-${apiPlayer.id}`,
+            team,
+            number: index + 1,
+            name: apiPlayer.name,
+            x: offsetX + formation[index].x * pitchWidth,
+            y: offsetY + formation[index].y * pitchHeight,
+            isOnBench: false,
+            stamina: 100,
+        }));
+
+        // Add substitutes to bench
+        substitutes.forEach((apiPlayer, index) => {
+            newPlayers.push({
+                id: `${team}-${apiPlayer.id}`,
+                team,
+                number: 12 + index,
+                name: apiPlayer.name,
+                x: 50,
+                y: 50,
+                isOnBench: true,
+                stamina: 100,
+            });
+        });
+
+        set((state) => ({
+            players: [
+                ...state.players.filter((p) => p.team !== team), // Keep other team
+                ...newPlayers,
+            ],
+            teamNames: {
+                ...state.teamNames,
+                [team]: teamName,
+            },
+        }));
+    },
+
+    setPitchDimensions: (dimensions) => set({ pitchDimensions: dimensions }),
 }));
