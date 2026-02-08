@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ChevronDown, ChevronUp, Users, Trash2, ToggleLeft, ToggleRight, Zap, Search, Loader2 } from 'lucide-react';
 import { useTacticalStore } from '../store/useTacticalStore';
-import { fetchTeamSquad } from '../services/teamApi';
+import { fetchTeamSquad, fetchTeamsList } from '../services/teamApi';
 
 // Get stamina bar color based on value (25% each: light green > orange > yellow > red)
 const getStaminaColor = (stamina: number): string => {
@@ -17,6 +17,8 @@ export const InspectorPanel = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [teamsList, setTeamsList] = useState<string[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
 
     const players = useTacticalStore((state) => state.players);
     const selectedPlayerId = useTacticalStore((state) => state.selectedPlayerId);
@@ -27,27 +29,24 @@ export const InspectorPanel = () => {
     const deletePlayer = useTacticalStore((state) => state.deletePlayer);
     const addPlayer = useTacticalStore((state) => state.addPlayer);
     const loadTeamFromApi = useTacticalStore((state) => state.loadTeamFromApi);
+    const teamNames = useTacticalStore((state) => state.teamNames);
 
     const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
     const teamPlayers = players.filter((p) => p.team === activeTeam);
     const activePlayers = teamPlayers.filter((p) => !p.isOnBench);
     const benchPlayers = teamPlayers.filter((p) => p.isOnBench);
 
-    // Pitch dimensions (must match TacticalBoard)
-    const pitchWidth = 800;
-    const pitchHeight = 500;
-    const offsetX = 100;
-    const offsetY = 100;
-
-    const handleLoadTeam = async () => {
-        if (!searchQuery.trim()) return;
+    const handleLoadTeam = async (teamName?: string) => {
+        const nameToLoad = teamName || searchQuery.trim();
+        if (!nameToLoad) return;
 
         setIsLoading(true);
         setError(null);
+        setShowSuggestions(false);
 
         try {
-            const response = await fetchTeamSquad(searchQuery.trim());
-            loadTeamFromApi(activeTeam, response.players, pitchWidth, pitchHeight, offsetX, offsetY);
+            const players = await fetchTeamSquad(nameToLoad);
+            loadTeamFromApi(activeTeam, players, nameToLoad);
             setSearchQuery('');
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load team');
@@ -55,6 +54,25 @@ export const InspectorPanel = () => {
             setIsLoading(false);
         }
     };
+
+    // Fetch teams list on mount
+    useEffect(() => {
+        fetchTeamsList()
+            .then((teams) => {
+                console.log(`Loaded ${teams.length} teams for autocomplete`);
+                setTeamsList(teams);
+            })
+            .catch(console.error);
+    }, []);
+
+    // Filter suggestions based on search query
+    const filteredSuggestions = useMemo(() => {
+        if (!searchQuery.trim() || searchQuery.length < 2) return [];
+        const query = searchQuery.toLowerCase();
+        return teamsList
+            .filter(team => team.toLowerCase().includes(query))
+            .slice(0, 8); // Limit to 8 suggestions
+    }, [searchQuery, teamsList]);
 
     return (
         <div className="fixed right-4 top-4 z-50 w-72">
@@ -82,7 +100,7 @@ export const InspectorPanel = () => {
                                     : 'text-white/60 hover:text-white hover:bg-white/5'
                                     }`}
                             >
-                                Chelsea ({players.filter(p => p.team === 'home' && !p.isOnBench).length}/11)
+                                {teamNames.home} ({players.filter(p => p.team === 'home' && !p.isOnBench).length}/11)
                             </button>
                             <button
                                 onClick={() => setActiveTeam('away')}
@@ -91,25 +109,58 @@ export const InspectorPanel = () => {
                                     : 'text-white/60 hover:text-white hover:bg-white/5'
                                     }`}
                             >
-                                Arsenal ({players.filter(p => p.team === 'away' && !p.isOnBench).length}/11)
+                                {teamNames.away} ({players.filter(p => p.team === 'away' && !p.isOnBench).length}/11)
                             </button>
                         </div>
 
                         {/* Team Search */}
-                        <div className="p-3 border-b border-white/10">
+                        <div className="p-3 border-b border-white/10 relative">
                             <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Search team..."
-                                    className="flex-1 bg-slate-800/50 border border-white/10 rounded px-2 py-1.5 text-white text-sm focus:outline-none focus:border-white/30"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && searchQuery.trim()) {
-                                            handleLoadTeam();
-                                        }
-                                    }}
-                                />
+                                <div className="flex-1 relative">
+                                    <input
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => {
+                                            setSearchQuery(e.target.value);
+                                            setShowSuggestions(true);
+                                        }}
+                                        onFocus={() => setShowSuggestions(true)}
+                                        onBlur={() => {
+                                            // Delay to allow click on suggestion
+                                            setTimeout(() => setShowSuggestions(false), 150);
+                                        }}
+                                        placeholder="Search team..."
+                                        className="w-full bg-slate-800/50 border border-white/10 rounded px-2 py-1.5 text-white text-sm focus:outline-none focus:border-white/30"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && searchQuery.trim()) {
+                                                handleLoadTeam();
+                                            }
+                                            if (e.key === 'Escape') {
+                                                setShowSuggestions(false);
+                                            }
+                                        }}
+                                    />
+
+                                    {/* Autocomplete Dropdown */}
+                                    {showSuggestions && filteredSuggestions.length > 0 && (
+                                        <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 border border-white/20 rounded-lg shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
+                                            {filteredSuggestions.map((team) => (
+                                                <button
+                                                    key={team}
+                                                    type="button"
+                                                    className="w-full px-3 py-2 text-left text-sm text-white/80 hover:bg-blue-600/30 hover:text-white transition-colors border-b border-white/5 last:border-b-0"
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        setSearchQuery(team);
+                                                        handleLoadTeam(team);
+                                                    }}
+                                                >
+                                                    {team}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                                 <button
                                     onClick={handleLoadTeam}
                                     disabled={isLoading || !searchQuery.trim()}

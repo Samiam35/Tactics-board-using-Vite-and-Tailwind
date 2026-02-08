@@ -1,41 +1,70 @@
 // API service for team data fetching
 
 export interface ApiPlayer {
-    id: string;
     name: string;
+    kit_number: number;
     position: string;
     team: string;
-    league: string;
     overall: number;
-    pace: number;
-    shooting: number;
-    passing: number;
-    dribbling: number;
-    defending: number;
-    physical: number;
     image: string;
-}
-
-export interface TeamResponse {
-    team: string;
-    count: number;
-    players: ApiPlayer[];
+    // Generate a unique ID from name since new API doesn't provide one
+    id?: string;
 }
 
 const API_BASE_URL = 'http://localhost:3000';
 
-export async function fetchTeamSquad(teamName: string): Promise<TeamResponse> {
+/**
+ * Fetch list of all team names for autocomplete (Big 5 leagues only)
+ */
+export async function fetchTeamsList(): Promise<string[]> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/teams-list`);
+
+        if (!response.ok) {
+            console.error('Failed to fetch teams list:', response.statusText);
+            return [];
+        }
+
+        const data = await response.json();
+
+        // Ensure we have an array
+        if (!Array.isArray(data)) {
+            console.error('Teams list is not an array:', data);
+            return [];
+        }
+
+        return data;
+    } catch (error) {
+        console.error('Error fetching teams list:', error);
+        return [];
+    }
+}
+
+/**
+ * Fetch squad for a specific team
+ */
+export async function fetchTeamSquad(teamName: string): Promise<ApiPlayer[]> {
     const response = await fetch(`${API_BASE_URL}/api/team?name=${encodeURIComponent(teamName)}`);
 
     if (!response.ok) {
-        throw new Error(`Failed to fetch team: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to fetch team: ${response.statusText}`);
     }
 
-    const data: TeamResponse = await response.json();
+    const data = await response.json();
 
-    if (data.count === 0) {
+    // Validate response is an array
+    if (!Array.isArray(data)) {
+        throw new Error(data.error || 'Invalid response from server');
+    }
+
+    if (data.length === 0) {
         throw new Error(`No players found for team "${teamName}"`);
     }
 
-    return data;
+    // Add unique IDs to players
+    return data.map((player: ApiPlayer, index: number) => ({
+        ...player,
+        id: `${player.name.replace(/\s+/g, '-')}-${index}`,
+    }));
 }
